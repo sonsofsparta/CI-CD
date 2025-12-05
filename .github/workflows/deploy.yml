@@ -13,40 +13,41 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       
-      # Step 2 — Debug connection details (optional)
-      - name: Debug Connection Details
-        run: |
-          echo "EC2_HOST = ${{ secrets.EC2_HOST }}"
-          echo "EC2_USER = ${{ secrets.EC2_USER }}" # Should be 'ubuntu'
-      
-      # Step 3 — Configure SSH Private Key
-      # Loads the SSH key into the runner's environment for secure connection
+      # Step 2 — Configure SSH Private Key
+      # Loads the SSH key (SSH_PRIVATE_KEY) into the runner's environment
       - name: Configure SSH Private Key
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
           
-      # Step 4 — Deployment: Prepare Directory, Copy Files, Run Script
+      # Step 3 — Deployment: Prepare Directory, Copy Files, Run Script
       - name: Deploy Application to EC2
         run: |
           # Define variables using your GitHub Secrets
-          USER="${{ secrets.EC2_USER }}"
+          USER="${{ secrets.EC2_USER }}"       # Should be 'ubuntu'
           HOST="${{ secrets.EC2_HOST }}"
-          TARGET_DIR="/var/www/html/my-app" # Your desired deployment path
+          TARGET_DIR="/var/www/html/my-app" # Your deployment path
           
           echo "1. Preparing deployment directory $TARGET_DIR on $HOST..."
           
           # SSH command to:
-          # a) Create the directory (-p ensures parents are created)
-          # b) Change ownership recursively (-R) to the connecting user ($USER)
+          # a) Create the directory (-p) with sudo (needed for /var/www/html)
+          # b) Change ownership (-R) to the connecting user ($USER), enabling SCP write permissions
           ssh -o StrictHostKeyChecking=no $USER@$HOST "sudo mkdir -p $TARGET_DIR && sudo chown -R $USER:$USER $TARGET_DIR"
 
           echo "2. Starting SCP file transfer..."
           
-          # Use SCP to securely copy all files to the now-prepared directory
+          # Use SCP to securely copy all files from the current path (repo root) to the target directory
           scp -o StrictHostKeyChecking=no -r ./* $USER@$HOST:$TARGET_DIR
           
           echo "3. Files copied successfully. Running remote deployment script."
           
-          # SSH command to execute post-deployment steps (like restarting a service)
-          ssh -o StrictHostKeyChecking=no $USER@$HOST "cd $TARGET_DIR && chmod +x deploy_script.sh && ./deploy_script.sh"
+          # SSH command using a 'heredoc' (<< EOF) to execute multiple commands reliably on the remote server
+          ssh -o StrictHostKeyChecking=no $USER@$HOST << EOF
+            # Navigate to the deployment directory
+            cd $TARGET_DIR
+            # Make the deploy script executable
+            chmod +x deploy_script.sh 
+            # Execute the deployment script
+            ./deploy_script.sh
+          EOF
