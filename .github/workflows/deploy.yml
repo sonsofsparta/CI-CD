@@ -13,10 +13,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Step 2 — Configure SSH access
-            - name: Debug EC2 host
+      # Step 2 — Debug EC2 host
+      - name: Debug EC2 host
         run: echo "EC2_HOST = ${{ secrets.EC2_HOST }}"
 
+      # Step 3 — Configure SSH access
       - name: Configure SSH
         run: |
           mkdir -p ~/.ssh
@@ -24,9 +25,9 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
-      # Step 3 — SCP (copy repo files to EC2)
+      # Step 4 — SCP (copy repo files to EC2)
       - name: Copy files to EC2
-        uses: appleboy/scp-action@v0.1.7
+        uses: appleboy/scp-action@v1.0.0
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
@@ -34,16 +35,13 @@ jobs:
           source: "."
           target: "/home/${{ secrets.EC2_USER }}/app"
 
-      # Step 4 — Run remote SSH commands (build & run your app)
+      # Step 5 — SSH remote commands
       - name: Deploy on server via SSH
-        uses: appleboy/ssh-action@v0.1.7
+        uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             cd ~/app
-            docker compose down || true
-            docker compose build
-            docker compose up -d
-
+            docker compose do
