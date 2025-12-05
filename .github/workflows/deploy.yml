@@ -9,37 +9,32 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Step 1 — Checkout code
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Step 2 — Configure SSH
       - name: Configure SSH
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
-      # Step 3 — SCP (copy repo files to EC2)
       - name: Copy files to EC2
         uses: appleboy/scp-action@v1.0.0
         with:
           host: ${{ secrets.EC2_HOST }}
-          username: ubuntu
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "."
-          target: "/home/ubuntu/app"
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "./*"
+          target: "/home/${{ secrets.EC2_USER }}/CI-CD"
 
-      # Step 4 — SSH remote commands
-      - name: Deploy on server via SSH
+      - name: Deploy on server
         uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ secrets.EC2_HOST }}
-          username: ubuntu
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            cd ~/app
-            docker compose down
+            cd ~/CI-CD
+            docker compose down || true
             docker compose up -d --build
-
