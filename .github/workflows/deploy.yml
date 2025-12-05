@@ -7,15 +7,41 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
+    
     steps:
       # Step 1 — Checkout repo code
       - name: Checkout code
         uses: actions/checkout@v4
-
+      
       # Step 2 — Debug EC2 host (optional)
       - name: Debug EC2 host
         run: echo "EC2_HOST = ${{ secrets.EC2_HOST }}"
-
-      # Step 3 — Configure SSH
-      - name: Configur
+      
+      # Step 3 — Configure SSH (This was the missing/truncated step)
+      - name: Configure SSH Private Key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          # This secret holds your private key content
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+          
+      # Step 4 — Deployment via SCP and SSH
+      - name: Deploy to EC2
+        run: |
+          # Define your connection details for clarity
+          USER="ec2-user" # Change this if your EC2 user is different (e.g., ubuntu, centos)
+          HOST="${{ secrets.EC2_HOST }}"
+          TARGET_DIR="/var/www/html/my-app" # Set the directory on your EC2 instance
+          
+          echo "Starting deployment to $USER@$HOST:$TARGET_DIR"
+          
+          # Use SCP to securely copy all files to the EC2 host
+          # The -r flag is for recursive copy (folders and files)
+          # The -o StrictHostKeyChecking=no option is often used in CI/CD 
+          # to skip the prompt for adding the host to known_hosts.
+          scp -o StrictHostKeyChecking=no -r ./* $USER@$HOST:$TARGET_DIR
+          
+          echo "Files copied successfully. Running remote commands."
+          
+          # SSH into the EC2 instance to execute deployment commands
+          # For example, running a remote deployment script:
+          ssh -o StrictHostKeyChecking=no $USER@$HOST "cd $TARGET_DIR && ./deploy_script.sh"
