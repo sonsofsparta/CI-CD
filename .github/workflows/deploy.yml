@@ -9,39 +9,37 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Step 1 — Get your repo code
+      # Step 1 — Checkout code
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Step 2 — Debug EC2 host
-      - name: Debug EC2 host
-        run: echo "EC2_HOST = ${{ secrets.EC2_HOST }}"
-
-      # Step 3 — Configure SSH access
+      # Step 2 — Configure SSH
       - name: Configure SSH
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
-      # Step 4 — SCP (copy repo files to EC2)
+      # Step 3 — SCP (copy repo files to EC2)
       - name: Copy files to EC2
         uses: appleboy/scp-action@v1.0.0
         with:
           host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
+          username: ubuntu
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
           source: "."
-          target: "/home/${{ secrets.EC2_USER }}/app"
+          target: "/home/ubuntu/app"
 
-      # Step 5 — SSH remote commands
+      # Step 4 — SSH remote commands
       - name: Deploy on server via SSH
         uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
+          username: ubuntu
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             cd ~/app
-            docker compose do
+            docker compose down
+            docker compose up -d --build
+
