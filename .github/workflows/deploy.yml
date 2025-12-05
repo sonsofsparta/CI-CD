@@ -9,39 +9,41 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      # Step 1 — Checkout repo code
+      # Step 1 — Checkout repository code
       - name: Checkout code
         uses: actions/checkout@v4
       
-      # Step 2 — Debug EC2 host (optional)
-      - name: Debug EC2 host
-        run: echo "EC2_HOST = ${{ secrets.EC2_HOST }}"
+      # Step 2 — Debug connection details (optional)
+      - name: Debug Connection Details
+        run: |
+          echo "EC2_HOST = ${{ secrets.EC2_HOST }}"
+          echo "EC2_USER = ${{ secrets.EC2_USER }}"
       
-      # Step 3 — Configure SSH (This was the missing/truncated step)
+      # Step 3 — Configure SSH Private Key
+      # This uses the webfactory/ssh-agent to load the key into the runner's SSH environment.
       - name: Configure SSH Private Key
         uses: webfactory/ssh-agent@v0.9.0
         with:
-          # This secret holds your private key content
+          # Uses the entire private key content stored in GitHub Secrets
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
           
       # Step 4 — Deployment via SCP and SSH
-      - name: Deploy to EC2
+      - name: Deploy Application to EC2
         run: |
-          # Define your connection details for clarity
-          USER="ec2-user" # Change this if your EC2 user is different (e.g., ubuntu, centos)
+          # Define variables using your GitHub Secrets
+          USER="${{ secrets.EC2_USER }}"       # Will use 'ubuntu' from the secret
           HOST="${{ secrets.EC2_HOST }}"
-          TARGET_DIR="/var/www/html/my-app" # Set the directory on your EC2 instance
+          TARGET_DIR="/var/www/html/my-app" # Adjust this to your desired deployment path
           
           echo "Starting deployment to $USER@$HOST:$TARGET_DIR"
           
-          # Use SCP to securely copy all files to the EC2 host
+          # Use SCP (Secure Copy) to transfer your files
+          # The -o StrictHostKeyChecking=no bypasses the prompt to add the host to known_hosts
           # The -r flag is for recursive copy (folders and files)
-          # The -o StrictHostKeyChecking=no option is often used in CI/CD 
-          # to skip the prompt for adding the host to known_hosts.
           scp -o StrictHostKeyChecking=no -r ./* $USER@$HOST:$TARGET_DIR
           
           echo "Files copied successfully. Running remote commands."
           
-          # SSH into the EC2 instance to execute deployment commands
-          # For example, running a remote deployment script:
-          ssh -o StrictHostKeyChecking=no $USER@$HOST "cd $TARGET_DIR && ./deploy_script.sh"
+          # SSH into the EC2 instance to execute post-deployment commands
+          # Example: Navigate to the directory and run a deployment script (like restarting a service)
+          ssh -o StrictHostKeyChecking=no $USER@$HOST "cd $TARGET_DIR && chmod +x deploy_script.sh && ./deploy_script.sh"
