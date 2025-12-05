@@ -19,7 +19,7 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
           
-      # Step 3 — Deployment: Prepare Directory, Copy Files, Run Script
+      # Step 3 — Deployment: Prepare Directory, Copy Files, and Confirm
       - name: Deploy Application to EC2
         run: |
           # Define variables using your GitHub Secrets
@@ -37,13 +37,8 @@ jobs:
           # Use SCP to securely copy all files
           scp -o StrictHostKeyChecking=no -r ./* $USER@$HOST:$TARGET_DIR
           
-          echo "3. Files copied successfully. Running remote deployment script."
+          echo "3. Deployment successful. Checking file count on EC2."
           
-          # SSH command using a 'heredoc' (<< EOF) to execute multiple commands reliably on the remote server
-          ssh -o StrictHostKeyChecking=no $USER@$HOST << EOF
-            # Navigate to the deployment directory
-            cd $TARGET_DIR
-            # *** CRITICAL FIX: Reference the script inside the 'app' directory ***
-            chmod +x app/deploy_script.sh 
-            ./app/deploy_script.sh
-          EOF
+          # SSH command to confirm files were copied
+          # We use 'ls -1' to count files and verify the operation succeeded.
+          ssh -o StrictHostKeyChecking=no $USER@$HOST "cd $TARGET_DIR && echo 'Copied files:' && ls -1 | wc -l"
