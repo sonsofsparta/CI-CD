@@ -7,34 +7,43 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
+    
     steps:
+      # Step 1 — Checkout repository code
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Configure SSH
+      
+      # Step 2 — Configure SSH Private Key
+      - name: Configure SSH Private Key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+          
+      # Step 3 — Deployment: Prepare Directory, Copy Files, Run Script
+      - name: Deploy Application to EC2
         run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+          # Define variables using your GitHub Secrets
+          USER="${{ secrets.EC2_USER }}"       
+          HOST="${{ secrets.EC2_HOST }}"
+          TARGET_DIR="/var/www/html/my-app" 
+          
+          echo "1. Preparing deployment directory $TARGET_DIR on $HOST..."
+          
+          # SSH command to create directory and set ownership
+          ssh -o StrictHostKeyChecking=no $USER@$HOST "sudo mkdir -p $TARGET_DIR && sudo chown -R $USER:$USER $TARGET_DIR"
 
-      - name: Copy files to EC2
-        uses: appleboy/scp-action@v1.0.0
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          source: "./*"
-          target: "/home/${{ secrets.EC2_USER }}/CI-CD"
-
-      - name: Deploy on server
-        uses: appleboy/ssh-action@v1.0.0
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          script: |
-            cd ~/CI-CD
-            docker compose down || true
-            docker compose up -d --build
+          echo "2. Starting SCP file transfer..."
+          
+          # Use SCP to securely copy all files
+          scp -o StrictHostKeyChecking=no -r ./* $USER@$HOST:$TARGET_DIR
+          
+          echo "3. Files copied successfully. Running remote deployment script."
+          
+          # SSH command using a 'heredoc' (<< EOF) to execute multiple commands reliably on the remote server
+          ssh -o StrictHostKeyChecking=no $USER@$HOST << EOF
+            # Navigate to the deployment directory
+            cd $TARGET_DIR
+            # *** CRITICAL FIX: Reference the script inside the 'app' directory ***
+            chmod +x app/deploy_script.sh 
+            ./app/deploy_script.sh
+          EOF
